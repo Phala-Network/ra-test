@@ -565,15 +565,25 @@ pub extern "C" fn ecall_main() -> sgx_status_t {
                     let got_pib = pib::platform_info::from_str(&pib);
                     println!("{:?}", got_pib);
                 } else {
-                    panic!("Failed to fetch platformInfoBlob from attestation report");
+                    println!("Failed to fetch platformInfoBlob from attestation report");
                 }
             }
             _ => {
-                panic!("isvEnclaveQuoteStatus unexpected.");
+                println!("isvEnclaveQuoteStatus unexpected.");
             }
         }
     } else {
         panic!("Failed to fetch isvEnclaveQuoteStatus from attestation report");
+    }
+
+    if let Value::String(advisory_url) = &attn_report["advisoryURL"] {
+        println!("advisoryURL = {}", advisory_url);
+    }
+
+    if let Value::Array(advisory_ids) = &attn_report["advisoryIDs"] {
+        if advisory_ids.len() > 0 {
+            println!("advisoryIDs = {}", advisory_ids.iter().map(|id| id.to_string()).join(", "));
+        }
     }
 
     // // 3. Verify quote body
