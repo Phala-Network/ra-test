@@ -519,6 +519,11 @@ pub extern "C" fn ecall_main() -> sgx_status_t {
     println!("{:?}", &machine_id);
     println!();
 
+    let cpu_core_num: u32 = sgx_trts::enclave::rsgx_get_cpu_core_num();
+    println!("CPU Cores:");
+    println!("{:?}", cpu_core_num);
+    println!();
+
     let ecdsa_sk = SecretKey::random(&mut rand::thread_rng());
     let ecdsa_pk = PublicKey::from_secret_key(&ecdsa_sk);
     let ecdsa_serialized_pk = ecdsa_pk.serialize_compressed();
@@ -527,10 +532,12 @@ pub extern "C" fn ecall_main() -> sgx_status_t {
         version: 1,
         machine_id,
         pubkey: ecdsa_serialized_pk,
-        features: vec![4, 1]
+        features: vec![cpu_core_num, 1]
     };
     let encoded_runtime_info = runtime_info.encode();
     let hash = sp_core::hashing::blake2_512(&encoded_runtime_info);
+
+
 
     // println!("Encoded runtime info:");
     // println!("{:?}", encoded_runtime_info);
