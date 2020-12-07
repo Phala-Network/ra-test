@@ -512,8 +512,32 @@ fn generate_seal_key() -> [u8; 16] {
     seal_key.key
 }
 
+use std::time::{Duration, Instant};
+use http_req::{request::Request, uri::Uri};
+
 #[no_mangle]
 pub extern "C" fn ecall_main() -> sgx_status_t {
+    println!("testing http_req");
+    let mut writer = Vec::new();
+    let timeout = Some(Duration::from_secs(4));
+
+    let res = Request::new(&"https://cn.bing.com".parse().unwrap())
+        .timeout(timeout)
+        .connect_timeout(timeout)
+        .read_timeout(timeout)
+        .send(&mut writer)
+        .unwrap();
+    println!("Status: {} {}", res.status_code(), res.reason());
+
+    let res = Request::new(&"https://www.rust-lang.org".parse().unwrap())
+        .timeout(timeout)
+        .connect_timeout(timeout)
+        .read_timeout(timeout)
+        .send(&mut writer)
+        .unwrap();
+    println!("Status: {} {}", res.status_code(), res.reason());
+    println!("testing http_req done");
+
     let machine_id = generate_seal_key();
     println!("Generated machine id:");
     println!("{:?}", &machine_id);
