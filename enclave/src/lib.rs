@@ -32,6 +32,9 @@ use parity_scale_codec::{Encode, Decode};
 use secp256k1::{SecretKey, PublicKey};
 use serde_json::Value;
 
+use std::time::{Duration, Instant};
+use http_req::{request::Request, uri::Uri};
+
 pub mod hex;
 mod cert;
 mod pib;
@@ -133,52 +136,6 @@ fn parse_response_attn_report(resp : &[u8]) -> (String, String, String){
     (attn_report, sig, sig_cert)
 }
 
-fn parse_response_sigrl(resp : &[u8]) -> Vec<u8> {
-    // println!("parse_response_sigrl");
-    let mut headers = [httparse::EMPTY_HEADER; 16];
-    let mut respp   = httparse::Response::new(&mut headers);
-    let result = respp.parse(resp);
-    // println!("parse result {:?}", result);
-    // println!("parse response{:?}", respp);
-
-    let msg : &'static str;
-
-    match respp.code {
-        Some(200) => msg = "OK Operation Successful",
-        Some(401) => msg = "Unauthorized Failed to authenticate or authorize request.",
-        Some(404) => msg = "Not Found GID does not refer to a valid EPID group ID.",
-        Some(500) => msg = "Internal error occurred",
-        Some(503) => msg = "Service is currently not able to process the request (due to
-            a temporary overloading or maintenance). This is a
-            temporary state – the same request can be repeated after
-            some time. ",
-        _ => msg = "Unknown error occured",
-    }
-
-    // println!("{}", msg);
-    let mut len_num : u32 = 0;
-
-    for i in 0..respp.headers.len() {
-        let h = respp.headers[i];
-        if h.name == "content-length" {
-            let len_str = String::from_utf8(h.value.to_vec()).unwrap();
-            len_num = len_str.parse::<u32>().unwrap();
-            // println!("content length = {}", len_num);
-        }
-    }
-
-    if len_num != 0 {
-        let header_len = result.unwrap().unwrap();
-        let resp_body = &resp[header_len..];
-        // println!("Base64-encoded SigRL: {:?}", resp_body);
-
-        return base64::decode(str::from_utf8(resp_body).unwrap()).unwrap();
-    }
-
-    // len_num == 0
-    Vec::new()
-}
-
 pub fn make_ias_client_config() -> rustls::ClientConfig {
     let mut config = rustls::ClientConfig::new();
 
@@ -194,36 +151,51 @@ pub fn get_sigrl_from_intel(fd : c_int, gid : u32) -> Vec<u8> {
     //let sigrl_req = sigrl_arg.to_httpreq();
     let ias_key = IAS_API_KEY.clone();
 
-    let req = format!("GET {}{:08x} HTTP/1.1\r\nHOST: {}\r\nOcp-Apim-Subscription-Key: {}\r\nConnection: Close\r\n\r\n",
-                      IAS_SIGRL_ENDPOINT,
-                      gid,
-                      IAS_HOST,
-                      ias_key);
-    // println!("{}", req);
+    let mut res_body_buffer = Vec::new(); //container for body of a response
+    let timeout = Some(Duration::from_secs(4));
 
-    let dns_name = webpki::DNSNameRef::try_from_ascii_str(IAS_HOST).unwrap();
-    let mut sess = rustls::ClientSession::new(&Arc::new(config), dns_name);
-    let mut sock = TcpStream::new(fd).unwrap();
-    let mut tls = rustls::Stream::new(&mut sess, &mut sock);
+    let url = format!("https://{}{}/{:08x}", IAS_HOST, IAS_SIGRL_ENDPOINT, gid).parse().unwrap();
+    let res = Request::new(&url)
+        .header("Connection", "Close")
+        .header("Ocp-Apim-Subscription-Key", &ias_key)
+        .timeout(timeout)
+        .connect_timeout(timeout)
+        .read_timeout(timeout)
+        .send(&mut res_body_buffer)
+        .unwrap();
 
-    let _result = tls.write(req.as_bytes());
-    let mut plaintext = Vec::new();
+    // parse_response_sigrl
 
-    // println!("write complete");
+    println!("Status: {} {}", res.status_code(), res.reason());
 
-    match tls.read_to_end(&mut plaintext) {
-        Ok(_) => (),
-        Err(e) => {
-            println!("get_sigrl_from_intel tls.read_to_end: {:?}", e);
-            panic!("haha");
-        }
+    let status_code = u16::from(res.status_code());
+    if status_code != 200 {
+        let msg =
+            match status_code {
+                401 => "Unauthorized Failed to authenticate or authorize request.",
+                404 => "Not Found GID does not refer to a valid EPID group ID.",
+                500 => "Internal error occurred",
+                503 => "Service is currently not able to process the request (due to
+                a temporary overloading or maintenance). This is a
+                temporary state – the same request can be repeated after
+                some time. ",
+                _ => "Unknown error occured",
+            };
+
+        println!("{}", msg);
+        // TODO: should return Err
+        panic!("status code not 200");
     }
-    // println!("read_to_end complete");
-    let resp_string = String::from_utf8(plaintext.clone()).unwrap();
 
-    // println!("{}", resp_string);
+    if res.content_len() != None && res.content_len() != Some(0) {
+        let res_body = res_body_buffer.clone();
+        let encoded_sigrl = str::from_utf8(&res_body).unwrap();
+        println!("Base64-encoded SigRL: {:?}", encoded_sigrl);
 
-    parse_response_sigrl(&plaintext)
+        return base64::decode(encoded_sigrl).unwrap()
+    }
+
+    Vec::new()
 }
 
 // TODO: support pse
@@ -512,32 +484,8 @@ fn generate_seal_key() -> [u8; 16] {
     seal_key.key
 }
 
-use std::time::{Duration, Instant};
-use http_req::{request::Request, uri::Uri};
-
 #[no_mangle]
 pub extern "C" fn ecall_main() -> sgx_status_t {
-    println!("testing http_req");
-    let mut writer = Vec::new();
-    let timeout = Some(Duration::from_secs(4));
-
-    let res = Request::new(&"https://cn.bing.com".parse().unwrap())
-        .timeout(timeout)
-        .connect_timeout(timeout)
-        .read_timeout(timeout)
-        .send(&mut writer)
-        .unwrap();
-    println!("Status: {} {}", res.status_code(), res.reason());
-
-    let res = Request::new(&"https://www.rust-lang.org".parse().unwrap())
-        .timeout(timeout)
-        .connect_timeout(timeout)
-        .read_timeout(timeout)
-        .send(&mut writer)
-        .unwrap();
-    println!("Status: {} {}", res.status_code(), res.reason());
-    println!("testing http_req done");
-
     let machine_id = generate_seal_key();
     println!("Generated machine id:");
     println!("{:?}", &machine_id);
@@ -560,8 +508,6 @@ pub extern "C" fn ecall_main() -> sgx_status_t {
     };
     let encoded_runtime_info = runtime_info.encode();
     let hash = sp_core::hashing::blake2_512(&encoded_runtime_info);
-
-
 
     // println!("Encoded runtime info:");
     // println!("{:?}", encoded_runtime_info);
