@@ -19,13 +19,10 @@ use sgx_rand::*;
 
 use sgx_types::sgx_status_t;
 
-use crate::std::io::{Write, Read};
-use crate::std::net::TcpStream;
 use crate::std::prelude::v1::*;
 use crate::std::ptr;
 use crate::std::str;
 use crate::std::string::String;
-use crate::std::sync::Arc;
 use crate::std::vec::Vec;
 use itertools::Itertools;
 use parity_scale_codec::{Encode, Decode};
@@ -33,7 +30,7 @@ use secp256k1::{SecretKey, PublicKey};
 use serde_json::Value;
 
 use std::time::{Duration, Instant};
-use http_req::{request::{Request, Method}, uri::Uri};
+use http_req::request::{Request, Method};
 
 pub mod hex;
 mod cert;
@@ -50,8 +47,6 @@ extern "C" {
     pub fn ocall_sgx_init_quote ( ret_val : *mut sgx_status_t,
                                   ret_ti  : *mut sgx_target_info_t,
                                   ret_gid : *mut sgx_epid_group_id_t) -> sgx_status_t;
-    pub fn ocall_get_ias_socket ( ret_val : *mut sgx_status_t,
-                                  ret_fd  : *mut i32) -> sgx_status_t;
     pub fn ocall_get_quote (ret_val            : *mut sgx_status_t,
                             p_sigrl            : *const u8,
                             sigrl_len          : u32,
@@ -76,7 +71,7 @@ lazy_static! {
     };
 }
 
-pub fn get_sigrl_from_intel(fd : c_int, gid : u32) -> Vec<u8> {
+pub fn get_sigrl_from_intel(gid : u32) -> Vec<u8> {
     // println!("get_sigrl_from_intel fd = {:?}", fd);
     //let sigrl_arg = SigRLArg { group_id : gid };
     //let sigrl_req = sigrl_arg.to_httpreq();
@@ -128,7 +123,7 @@ pub fn get_sigrl_from_intel(fd : c_int, gid : u32) -> Vec<u8> {
 }
 
 // TODO: support pse
-pub fn get_report_from_intel(fd : c_int, quote : Vec<u8>) -> (String, String, String) {
+pub fn get_report_from_intel(quote : Vec<u8>) -> (String, String, String) {
     // println!("get_report_from_intel fd = {:?}", fd);
     let encoded_quote = base64::encode(&quote[..]);
     let encoded_json = format!("{{\"isvEnclaveQuote\":\"{}\"}}\r\n", encoded_quote);
@@ -242,26 +237,8 @@ pub fn create_attestation_report(data: &[u8], sign_type: sgx_quote_sign_type_t) 
 
     let eg_num = as_u32_le(&eg);
 
-    // (1.5) get sigrl
-    let mut ias_sock : i32 = 0;
-
-    let res = unsafe {
-        ocall_get_ias_socket(&mut rt as *mut sgx_status_t,
-                             &mut ias_sock as *mut i32)
-    };
-
-    if res != sgx_status_t::SGX_SUCCESS {
-        return Err(res);
-    }
-
-    if rt != sgx_status_t::SGX_SUCCESS {
-        return Err(rt);
-    }
-
-    //println!("Got ias_sock = {}", ias_sock);
-
     // Now sigrl_vec is the revocation list, a vec<u8>
-    let sigrl_vec : Vec<u8> = get_sigrl_from_intel(ias_sock, eg_num);
+    let sigrl_vec : Vec<u8> = get_sigrl_from_intel(eg_num);
 
     // (2) Generate the report
     // Fill data into report_data
@@ -389,20 +366,7 @@ pub fn create_attestation_report(data: &[u8], sign_type: sgx_quote_sign_type_t) 
     }
 
     let quote_vec : Vec<u8> = return_quote_buf[..quote_len as usize].to_vec();
-    let res = unsafe {
-        ocall_get_ias_socket(&mut rt as *mut sgx_status_t,
-                             &mut ias_sock as *mut i32)
-    };
-
-    if res != sgx_status_t::SGX_SUCCESS {
-        return Err(res);
-    }
-
-    if rt != sgx_status_t::SGX_SUCCESS {
-        return Err(rt);
-    }
-
-    let (attn_report, sig, cert) = get_report_from_intel(ias_sock, quote_vec);
+    let (attn_report, sig, cert) = get_report_from_intel(quote_vec);
     Ok((attn_report, sig, cert))
 }
 
