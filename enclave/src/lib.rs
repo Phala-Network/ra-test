@@ -78,7 +78,7 @@ pub fn get_sigrl_from_intel(gid : u32) -> Vec<u8> {
     let ias_key = IAS_API_KEY.clone();
 
     let mut res_body_buffer = Vec::new(); //container for body of a response
-    let timeout = Some(Duration::from_secs(4));
+    let timeout = Some(Duration::from_secs(8));
 
     let url = format!("https://{}{}/{:08x}", IAS_HOST, IAS_SIGRL_ENDPOINT, gid).parse().unwrap();
     let res = Request::new(&url)
@@ -131,7 +131,7 @@ pub fn get_report_from_intel(quote : Vec<u8>) -> (String, String, String) {
     let ias_key = IAS_API_KEY.clone();
 
     let mut res_body_buffer = Vec::new(); //container for body of a response
-    let timeout = Some(Duration::from_secs(4));
+    let timeout = Some(Duration::from_secs(8));
 
     let url = format!("https://{}{}", IAS_HOST, IAS_REPORT_ENDPOINT).parse().unwrap();
     let res = Request::new(&url)
