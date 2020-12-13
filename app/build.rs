@@ -27,9 +27,14 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 use std::env;
+use std::path::Path;
 
 fn main () {
-    let sdk_dir = env::var("SGX_SDK").unwrap_or_else(|_| "/opt/intel/sgxsdk".to_string());
+    let mut sdk_dir = env::var("SGX_SDK").unwrap_or_else(|_| "/opt/sgxsdk".to_string());
+    if !Path::new(&sdk_dir).exists() {
+        sdk_dir = "/opt/intel/sgxsdk".to_string();
+    }
+
     let is_sim = env::var("SGX_MODE").unwrap_or_else(|_| "HW".to_string());
 
     println!("cargo:rustc-link-search=native=../lib");
