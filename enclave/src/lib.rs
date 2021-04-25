@@ -32,9 +32,12 @@ use serde_json::Value;
 use std::time::{Duration, Instant};
 use http_req::request::{Request, Method};
 
-pub mod hex;
+mod hex;
 mod cert;
 mod pib;
+mod constants;
+
+use constants::*;
 
 const IAS_SPID_STR: &str = env!("IAS_SPID");
 const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
@@ -375,7 +378,7 @@ type WorkerPublicKey = [u8; 33];
 
 #[derive(Encode, Decode)]
 struct PRuntimeInfo {
-    pub version: u8,
+    pub version: u32,
     pub machine_id: MachineId,
     pub pubkey: WorkerPublicKey,
     pub features: Vec<u32>
@@ -437,8 +440,8 @@ pub extern "C" fn ecall_main() -> sgx_status_t {
     let encoded_runtime_info = runtime_info.encode();
     let hash = sp_core::hashing::blake2_512(&encoded_runtime_info);
 
-    // println!("Encoded runtime info:");
-    // println!("{:?}", encoded_runtime_info);
+    println!("Encoded runtime info:");
+    println!("{:?}", encoded_runtime_info);
 
     println!("Testing RA...");
 
@@ -446,18 +449,19 @@ pub extern "C" fn ecall_main() -> sgx_status_t {
 
     let attn_report: Value = serde_json::from_str(&attn_report_raw).unwrap();
     let sig: Vec<u8> = base64::decode(&sig_raw).unwrap();
-    let sig_cert_dec: Vec<u8> = base64::decode_config(&sig_cert_raw, base64::STANDARD).unwrap();
+    let sig_cert_dec: Vec<u8> = base64::decode(&sig_cert_raw).unwrap();
     let sig_cert: webpki::EndEntityCert = webpki::EndEntityCert::from(&sig_cert_dec).unwrap();
 
-    // println!("==== Loaded Attestation Report ====");
+    println!("==== Loaded Attestation Report ====");
     // println!("{}", ::serde_json::to_string_pretty(&attn_report).unwrap());
-    // println!();
-    // println!("==== Loaded Report Signature ====");
-    // println!("{}", sig_raw);
-    // println!();
-    // println!("==== Loaded Report Signing Certificate ====");
-    // println!("{:?}", sig_cert_raw);
-    // println!();
+    println!("{}", attn_report_raw);
+    println!();
+    println!("==== Loaded Report Signature ====");
+    println!("{}", sig_raw);
+    println!();
+    println!("==== Loaded Report Signing Certificate ====");
+    println!("{}", sig_cert_raw);
+    println!();
 
     // 2. Verify quote status (mandatory field)
     if let Value::String(quote_status) = &attn_report["isvEnclaveQuoteStatus"] {
@@ -513,6 +517,37 @@ pub extern "C" fn ecall_main() -> sgx_status_t {
     // } else {
     //     panic!("Failed to fetch isvEnclaveQuoteBody from attestation report");
     // }
+
+    let quote_status = &attn_report["isvEnclaveQuoteStatus"].as_str().unwrap_or("UNKNOWN");
+    let mut confidence_level: u8 = 128;
+    if IAS_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
+        confidence_level = 1;
+    } else if IAS_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
+        confidence_level = 2;
+    } else if IAS_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
+        confidence_level = 3;
+    } else if IAS_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
+        confidence_level = 5;
+    }
+
+    if confidence_level < 5 {
+        // Filter AdvisoryIDs. `advisoryIDs` is optional
+        if let Some(advisory_ids) = attn_report["advisoryIDs"].as_array() {
+            for advisory_id in advisory_ids {
+                let advisory_id = advisory_id.as_str().unwrap();
+
+                if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
+                    confidence_level = 4;
+                }
+            }
+        }
+    }
+
+    if confidence_level < 128 {
+        println!("confidentialLevel = {}", confidence_level);
+    } else {
+        println!("Can't give a `confidentialLevel` due to don't meet minimum requirement.");
+    }
 
     sgx_status_t::SGX_SUCCESS
 }
