@@ -544,9 +544,9 @@ pub extern "C" fn ecall_main() -> sgx_status_t {
     }
 
     if confidence_level < 128 {
-        println!("confidentialLevel = {}", confidence_level);
+        println!("confidenceLevel = {}", confidence_level);
     } else {
-        println!("Can't give a `confidentialLevel` due to don't meet minimum requirement.");
+        println!("Can't give a `confidenceLevel` due to don't meet minimum requirement.");
     }
 
     sgx_status_t::SGX_SUCCESS
