@@ -452,35 +452,35 @@ pub extern "C" fn ecall_main() -> sgx_status_t {
     let sig_cert_dec: Vec<u8> = base64::decode(&sig_cert_raw).unwrap();
     let sig_cert: webpki::EndEntityCert = webpki::EndEntityCert::from(&sig_cert_dec).unwrap();
 
-    println!("==== Loaded Attestation Report ====");
-    // println!("{}", ::serde_json::to_string_pretty(&attn_report).unwrap());
-    println!("{}", attn_report_raw);
-    println!();
-    println!("==== Loaded Report Signature ====");
-    println!("{}", sig_raw);
-    println!();
-    println!("==== Loaded Report Signing Certificate ====");
-    println!("{}", sig_cert_raw);
-    println!();
+    // println!("==== Loaded Attestation Report ====");
+    // // println!("{}", ::serde_json::to_string_pretty(&attn_report).unwrap());
+    // println!("{}", attn_report_raw);
+    // println!();
+    // println!("==== Loaded Report Signature ====");
+    // println!("{}", sig_raw);
+    // println!();
+    // println!("==== Loaded Report Signing Certificate ====");
+    // println!("{}", sig_cert_raw);
+    // println!();
 
     // 2. Verify quote status (mandatory field)
     if let Value::String(quote_status) = &attn_report["isvEnclaveQuoteStatus"] {
         println!("isvEnclaveQuoteStatus = {}", quote_status);
-        match quote_status.as_ref() {
-            "OK" => (),
-            "GROUP_OUT_OF_DATE" | "GROUP_REVOKED" | "CONFIGURATION_NEEDED" => {
-                // Verify platformInfoBlob for further info if status not OK
-                if let Value::String(pib) = &attn_report["platformInfoBlob"] {
-                    let got_pib = pib::platform_info::from_str(&pib);
-                    println!("{:?}", got_pib);
-                } else {
-                    println!("Failed to fetch platformInfoBlob from attestation report");
-                }
-            }
-            _ => {
-                println!("isvEnclaveQuoteStatus unexpected.");
-            }
-        }
+        // match quote_status.as_ref() {
+        //     "OK" => (),
+        //     "GROUP_OUT_OF_DATE" | "GROUP_REVOKED" | "CONFIGURATION_NEEDED" => {
+        //         // Verify platformInfoBlob for further info if status not OK
+        //         if let Value::String(pib) = &attn_report["platformInfoBlob"] {
+        //             let got_pib = pib::platform_info::from_str(&pib);
+        //             println!("{:?}", got_pib);
+        //         } else {
+        //             println!("Failed to fetch platformInfoBlob from attestation report");
+        //         }
+        //     }
+        //     _ => {
+        //         println!("isvEnclaveQuoteStatus unexpected.");
+        //     }
+        // }
     } else {
         panic!("Failed to fetch isvEnclaveQuoteStatus from attestation report");
     }
