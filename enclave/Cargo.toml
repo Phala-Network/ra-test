@@ -25,8 +25,8 @@ serde_json  = { git = "https://github.com/mesalock-linux/serde-json-sgx" }
 http_req  = { git = "https://github.com/mesalock-linux/http_req-sgx", features = ["rust-tls"]}
 
 lazy_static = { version = "*", default-features = false, features = ["spin_no_std"] }
-parity-scale-codec   = { package = "parity-scale-codec", version = "2.3", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["full_crypto"]}
+parity-scale-codec   = { package = "parity-scale-codec", version = "3.1", default-features = false, features = ["derive"] }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, features = ["full_crypto"] }
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
 sgx_backtrace   = { rev = "v1.1.4", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
