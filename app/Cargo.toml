@@ -7,8 +7,8 @@ edition = "2021"
 resolver = "2"
 
 [dependencies]
-sgx_types = { rev = "v1.1.4", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_urts = { rev = "v1.1.4", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_types = { rev = "v1.1.6", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_urts = { rev = "v1.1.6", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 # sgx_alloc = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
