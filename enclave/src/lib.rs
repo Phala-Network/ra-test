@@ -530,12 +530,16 @@ pub extern "C" fn ecall_main() -> sgx_status_t {
         confidence_level = 5;
     }
 
-    if confidence_level < 5 {
+    // CL 1 means there is no known issue of the CPU
+    // CL 2 means the worker's firmware up to date, and the worker has well configured to prevent known issues
+    // CL 3 means the worker's firmware up to date, but needs to well configure its BIOS to prevent known issues
+    // CL 5 means the worker's firmware is outdated
+    // For CL 3, we don't know which vulnerable (aka SA) the worker not well configured, so we need to check the allow list
+    if confidence_level == 3 {
         // Filter AdvisoryIDs. `advisoryIDs` is optional
         if let Some(advisory_ids) = attn_report["advisoryIDs"].as_array() {
             for advisory_id in advisory_ids {
                 let advisory_id = advisory_id.as_str().unwrap();
-
                 if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
                     confidence_level = 4;
                 }
